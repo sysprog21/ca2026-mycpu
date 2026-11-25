@@ -20,16 +20,16 @@
 #
 # History must be linear: no merge commits since the base commit. Rebase onto
 # the upstream branch instead of merging it, then run `chain.sh rechain`. The
-# one exception is a merge commit listed in EXEMPT (pull request #1 only): it
+# one exception is a merge commit listed in EXEMPT (two, made by GitHub): it
 # adds no tree of its own and is transparent to the chain, whose link through
 # it is the link of the branch it merged.
 
 BASE="${CHAIN_BASE:-0f7e5b61797a7643783cde6f4d4dcc9aa9657864}"
 
-# Merge commits the chain passes through: the merge of pull request #1, which
-# GitHub made for a branch that main had not outrun. The rest of the history
-# is linear.
-EXEMPT="${CHAIN_EXEMPT:-45774735fa7f723ce64b985eebe2747f3bf161db}"
+# Merge commits the chain passes through: the two that GitHub made for pull
+# requests whose branch main had not outrun. The rest of the history is
+# linear, and pull requests are no longer merged with a merge commit.
+EXEMPT="${CHAIN_EXEMPT:-45774735fa7f723ce64b985eebe2747f3bf161db 3e5a67f234d9969fa7740be5cb33feaecaabaa8d}"
 
 here=$(cd "$(dirname "$0")" && pwd)
 source "$here/common.sh"
