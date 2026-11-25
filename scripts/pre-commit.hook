@@ -170,8 +170,8 @@ fi
 
 # CHECK 7: Non-ASCII filenames
 update_progress "Checking filenames"
-if test "$(git diff --cached --name-only --diff-filter=A -z |
-  LC_ALL=C tr -d '[ -~]\0' | wc -c)" != 0; then
+if test "$(git diff --cached --name-only --diff-filter=ACR -z |
+  LC_ALL=C tr -d '[ -~]\0' | wc -c | tr -d ' ')" != 0; then
   report_result 1 "Non-ASCII filename detected"
   RETURN=1
 else

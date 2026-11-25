@@ -6,7 +6,8 @@ Each test copies the hooks into a new repository, installs them with scripts/ins
 makes real commits, so what is tested is what a contributor gets: the rules of the commit-msg hook
 (the seven rules of https://cbea.ms/git-commit/), the same rules on a stored commit, the Change-Id
 that a squash leaves several of, the advice after a rewrite, the guard of post-commit during a
-rebase, what prepare-commit-msg writes, the installer, and the check of the prerequisites.
+rebase, the file names that pre-commit refuses (also where wc pads its count, as on macOS), what
+prepare-commit-msg writes, the installer, and the check of the prerequisites.
 """
 
 import os
@@ -209,6 +210,67 @@ class BinaryFileTest(HookTest):
         r.git("add", ".gitattributes")
         p = self.commit_binary(r, "doc/a.png")
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+
+
+class FilenameTest(HookTest):
+    NAME = "報告.txt"  # a file name in Chinese
+
+    def repo_with(self, padded):
+        """A repository whose hooks see the count of wc padded, as the wc of macOS prints it, or not."""
+        r = self.repo()
+        if padded:
+            bin_dir = tempfile.mkdtemp(prefix="hooktest.bin.")
+            self.addCleanup(shutil.rmtree, bin_dir, True)
+            wc = os.path.join(bin_dir, "wc")
+            with open(wc, "w") as f:
+                f.write('#!/bin/sh\nout=$("%s" "$@") || exit\nprintf "%%8s\\n" "$(echo $out)"\n' % shutil.which("wc"))
+            os.chmod(wc, 0o755)
+            r.env["PATH"] = bin_dir + os.pathsep + r.env["PATH"]
+        return r
+
+    def test_a_non_ascii_name_is_refused_when_added_or_renamed(self):
+        for padded in (False, True):
+            for how in ("added", "renamed"):
+                with self.subTest(how=how, padded=padded):
+                    r = self.repo_with(padded)
+                    if how == "added":
+                        r.write(self.NAME, "notes\n")
+                        r.git("add", self.NAME)
+                    else:
+                        r.write("report.txt", "notes\n")
+                        r.git("add", "report.txt")
+                        self.assertEqual(r.commit(GOOD).returncode, 0)
+                        r.git("mv", "report.txt", self.NAME)  # staged as a rename, not as an addition
+                    head = r.git("rev-parse", "HEAD").stdout
+                    c = r.commit(GOOD)
+                    self.assertNotEqual(c.returncode, 0)
+                    self.assertIn("Non-ASCII filename detected", c.stdout + c.stderr)
+                    self.assertEqual(r.git("rev-parse", "HEAD").stdout, head, "nothing was committed")
+
+    def test_ascii_names_pass_also_with_a_padded_count(self):
+        for padded in (False, True):
+            with self.subTest(padded=padded):
+                r = self.repo_with(padded)
+                r.write("report.txt", "notes\n")
+                r.git("add", "report.txt")
+                c = r.commit(GOOD)
+                self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
+                r.git("mv", "report.txt", "summary.txt")
+                c = r.commit(GOOD)
+                self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
+
+    def test_a_tracked_non_ascii_name_can_still_be_edited(self):
+        for padded in (False, True):
+            with self.subTest(padded=padded):
+                r = self.repo_with(padded)
+                r.write(self.NAME, "notes\n")
+                r.git("add", self.NAME)
+                self.assertEqual(r.commit(GOOD, hooks=False).returncode, 0)  # a name already in the tree
+                self.assertEqual(r.run("scripts/chain.sh", "rechain").returncode, 0)
+                r.write(self.NAME, "more notes\n")
+                r.git("add", self.NAME)
+                c = r.commit(GOOD)
+                self.assertEqual(c.returncode, 0, c.stdout + c.stderr)
 
 
 class PrepareCommitMsgTest(HookTest):
